@@ -1,0 +1,34 @@
+You are absolutely right to catch that. There is no teamId or any team concept anywhere in the current data model — so GET /analytics/team as I described it is misleading. Let me clarify what it actually is and what your real options are.
+What "team" currently means in your system
+Right now your User entity only has this:
+id · name · email · password · role (USER or MANAGER)
+There is no team, no department, no grouping of any kind. So when I said GET /analytics/team what it actually returns is just all users' metrics aggregated together — every single user in the system. That's not really a "team report", that's just a global report. It's still useful but you should name it honestly.
+Rename it to:
+GET /analytics/overview
+Which returns aggregated stats across all users — total tasks completed platform-wide, average completion time across everyone, most active user etc. No team concept needed, no changes required.
+
+If you want real team support later
+You would need to add this to Auth Service:
+Team entity
+───────────────────
+id        UUID
+name      String
+managerId UUID    ← the MANAGER role user who owns this team
+And add teamId UUID as a foreign key on the User entity. Then TaskEvent would carry teamId in the payload and Analytics could filter by it.
+But this is scope creep for now — skip it entirely. The MANAGER role you already have is enough to show role-based access in interviews without needing full team management.
+
+Concrete change to make
+In your AnalyticsController just replace the team endpoint with:
+javaGET /analytics/overview   → sum of all TaskMetric rows, platform-wide numbers
+GET /analytics/users      → list of all individual user metrics (what team was before)
+And drop TeamAnalyticsResponse DTO. Replace it with:
+javapublic record OverviewResponse(
+    long totalTasksCreated,
+    long totalTasksCompleted,
+    long totalTasksInProgress,
+    long avgCompletionMs,
+    String avgCompletionReadable,
+    int totalActiveUsers
+) {}
+You compute this by calling taskMetricRepository.findAll() and aggregating in the service layer — no schema changes needed anywhere.
+Everything else in Analytics Service stays exactly as described. Good catch — that kind of consistency check is exactly what you should be doing as you build.
